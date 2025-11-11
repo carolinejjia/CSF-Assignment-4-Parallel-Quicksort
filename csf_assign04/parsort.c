@@ -27,13 +27,41 @@ int main( int argc, char **argv ) {
   // open the named file
   // TODO: open the named file
 
+  const char *filename = argv[1];
+  fd = open(filename, O_RDWR);
+  if (fd < 0) {
+    perror("open");
+    exit(1);
+  }
+
   // determine file size and number of elements
   unsigned long file_size, num_elements;
   // TODO: determine the file size and number of elements
 
+  struct stat statbuf;
+  if (fstat(fd, &statbuf) != 0) {
+    perror("fstat");
+    close(fd);
+    exit(1);
+  }
+  file_size = statbuf.st_size;
+  num_elements = file_size / sizeof(int64_t);
+
+  if (num_elements == 0) {
+    fprintf(stderr, "Error: file contains no elements\n");
+    close(fd);
+    exit(1);
+  }
+
   // mmap the file data
   int64_t *arr;
   // TODO: mmap the file data
+  arr = mmap(NULL, file_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  close(fd);
+  if (arr == MAP_FAILED) {
+    perror("mmap");
+    exit(1);
+  }
 
   // Sort the data!
   int success;
@@ -45,6 +73,10 @@ int main( int argc, char **argv ) {
 
   // Unmap the file data
   // TODO: unmap the file data
+  if (munmap(arr, file_size) != 0) {
+    perror("munmap");
+    exit(1);
+  }
 
   return 0;
 }
@@ -178,10 +210,35 @@ int quicksort( int64_t *arr, unsigned long start, unsigned long end, unsigned lo
   // Recursively sort the left and right partitions
   int left_success, right_success;
   // TODO: modify this code so that the recursive calls execute in child processes
-  left_success = quicksort( arr, start, mid, par_threshold );
-  right_success = quicksort( arr, mid + 1, end, par_threshold );
+  pid_t left_pid = fork();
+  if (left_pid == 0) {
+    int ok = quicksort(arr, start, mid, par_threshold);
+    exit(ok ? 0 : 1);
+  } else if (left_pid < 0) {
+    perror("fork left");
+    return 0;
+  }
 
-  return left_success && right_success;
+  pid_t right_pid = fork();
+  if (right_pid == 0) {
+    int ok = quicksort(arr, mid + 1, end, par_threshold);
+    exit(ok ? 0 : 1);
+  } else if (right_pid < 0) {
+    perror("fork right");
+    int wstatus;
+    waitpid(left_pid, &wstatus, 0); // wait for left child to prevent zombie
+    return 0;
+  }
+
+  int left_status, right_status;
+  int success = 1;
+
+  if (waitpid(left_pid, &left_status, 0) < 0 || !WIFEXITED(left_status) || WEXITSTATUS(left_status) != 0)
+    success = 0;
+  if (waitpid(right_pid, &right_status, 0) < 0 || !WIFEXITED(right_status) || WEXITSTATUS(right_status) != 0)
+    success = 0;
+
+  return success;
 }
 
 // TODO: define additional helper functions if needed
