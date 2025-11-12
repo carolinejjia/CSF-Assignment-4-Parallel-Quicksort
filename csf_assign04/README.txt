@@ -13,8 +13,9 @@ parallelism.
 
 Looking at the data, the runtime decreases from the largest threshold of 2097152 and a 
 runtime of 0.839s and reaches its lowest value at a threshold of 65536, with 0.182s.
-The lowest threshold of 16384 has a runtime of 0.195s, slightly higher than the next 
-highest threshold, signifying that the overhead created by the additional fork() calls
+The next lowest threshold has a runtime of 0.188s, which is slower than this.
+The lowest threshold of 16384 has a runtime of 0.195s, even slower than the previous threshold. 
+These results show that the overhead created by the additional fork() calls
 outweighs the efficiency benefit of additional parallelism.
 
 Test run with threshold 2097152
